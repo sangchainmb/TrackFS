@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P-Track V2.0</title>
+    
+    <script>
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else { document.documentElement.classList.remove('dark'); }
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', }</script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; transition: background-color 0.3s ease, color 0.3s ease; }
+        .glass-card { background: #ffffff; border-radius: 20px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); padding: 24px; border: 1px solid rgba(226, 232, 240, 0.8); transition: background-color 0.3s, border-color 0.3s; }
+        html.dark .glass-card { background: #1e293b; border-color: #334155; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4); }
+        .sidebar-item { transition: all 0.2s ease; }
+        .sidebar-item:hover { background-color: #f1f5f9; color: #4f46e5; border-radius: 12px; cursor: pointer; transform: translateX(4px); }
+        html.dark .sidebar-item:hover { background-color: #334155; color: #818cf8; }
+        .active-nav { color: #4f46e5; background-color: #eef2ff; border-radius: 12px; font-weight: 600; }
+        html.dark .active-nav { color: #818cf8; background-color: #312e81; }
+        th { position: sticky; top: 0; background: #ffffff; z-index: 10; box-shadow: 0 1px 0px rgba(226, 232, 240, 1); transition: background-color 0.3s; }
+        html.dark th { background: #0f172a; box-shadow: 0 1px 0px rgba(51, 65, 85, 1); }
+        .view-section { display: none; }
+        .view-active { display: block; animation: fadeSlideUp 0.4s ease-out forwards; }
+        @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        select.custom-select { appearance: none; outline: none; background: transparent; padding-right: 1.5rem; cursor: pointer; }
+        .status-wrapper { position: relative; display: inline-block; }
+        .status-wrapper::after { content: '\f0d7'; font-family: 'FontAwesome'; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: 10px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        html.dark ::-webkit-scrollbar-thumb { background: #475569; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 selection:bg-indigo-100 dark:selection:bg-indigo-500/30" onload="initApp()">
+
+    <datalist id="vendorList"></datalist>
+    <datalist id="processList"></datalist>
+
+    <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/60 z-30 hidden lg:hidden backdrop-blur-sm transition-opacity"></div>
+
+    <aside id="sidebar" class="w-64 bg-white dark:bg-slate-800 border-r border-slate-100 dark:border-slate-700/50 flex flex-col justify-between fixed inset-y-0 left-0 transform -translate-x-full lg:relative lg:translate-x-0 lg:flex z-40 shadow-2xl lg:shadow-xl dark:shadow-none transition-transform duration-300">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-10">
+                <div class="flex items-center gap-3 text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+                        <i class="fa-solid fa-cube text-lg"></i>
+                    </div>
+                    P-Track
+                </div>
+                <button onclick="toggleSidebar()" class="lg:hidden text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <button onclick="switchView('view-add', null)" class="w-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white font-medium py-3 px-4 rounded-xl mb-8 flex justify-between items-center transition-all shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:-translate-y-0.5">
+                Create Order <i class="fa-solid fa-plus bg-white/20 p-1.5 rounded-lg text-xs"></i>
+            </button>
+            <nav class="space-y-1 text-sm font-medium text-slate-500 dark:text-slate-400" id="nav-links">
+                <div onclick="switchView('view-dashboard', this)" class="sidebar-item active-nav flex items-center gap-3 p-3.5"><i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard</div>
+                <div onclick="switchView('view-orders', this)" class="sidebar-item flex items-center gap-3 p-3.5"><i class="fa-solid fa-list w-5 text-center"></i> All Orders</div>
+                <div onclick="switchView('view-eta', this)" class="sidebar-item flex items-center gap-3 p-3.5"><i class="fa-solid fa-truck-fast w-5 text-center"></i> ETA Tracking</div>
+            </nav>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <header class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md flex flex-wrap gap-4 items-center justify-between px-4 md:px-8 py-4 border-b border-slate-200/60 dark:border-slate-700/60 sticky top-0 z-10 transition-colors duration-300">
+            <div class="flex items-center gap-3 flex-1">
+                <button onclick="toggleSidebar()" class="lg:hidden w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                    <i class="fa-solid fa-bars text-slate-600 dark:text-slate-300"></i>
+                </button>
+                
+                <h1 id="page-title" class="text-lg md:text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight whitespace-nowrap hidden sm:block">Dashboard Overview</h1>
+                
+                <div class="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 transition-colors w-full max-w-sm ml-4">
+                    <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+                    <input type="text" id="searchInput" onkeyup="applyFilters()" placeholder="Search products, vendors..." class="bg-transparent border-none outline-none text-sm text-slate-700 dark:text-slate-200 w-full placeholder-slate-400 dark:placeholder-slate-500">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 md:gap-4">
+                <div id="sync-status" class="hidden xl:flex items-center gap-2 text-xs font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 transition-colors">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Sheets Live
+                </div>
+                <button onclick="toggleTheme()" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                    <i id="theme-icon" class="fa-solid fa-moon text-slate-600 dark:text-slate-300"></i>
+                </button>
+                <div class="flex items-center gap-1 md:gap-2 bg-slate-100 dark:bg-slate-700 px-2 md:px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 transition-colors">
+                    <i class="fa-regular fa-calendar-check text-indigo-500 dark:text-indigo-400 hidden md:block"></i>
+                    <span class="hidden md:inline text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider pr-2 border-r border-slate-300 dark:border-slate-600">ETA</span>
+                    <select id="globalMonthFilter" onchange="applyFilters()" class="custom-select text-xs md:text-sm font-semibold text-slate-700 dark:text-slate-200 bg-transparent border-none outline-none pl-1 md:pl-2">
+                        <option value="all">All Months</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-4 md:p-8">
+            
+            <div id="view-dashboard" class="view-section view-active space-y-6 max-w-7xl mx-auto">
+                <div class="flex flex-wrap gap-4 justify-between items-center mb-2">
+                    <h2 class="text-lg font-bold text-slate-700 dark:text-slate-300">Real-Time Analytics</h2>
+                    <button onclick="loadFromGoogleSheets()" class="text-sm bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold px-4 py-2 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition border border-indigo-200 dark:border-indigo-500/20 flex items-center gap-2">
+                        <i class="fa-solid fa-rotate sync-icon-global"></i> <span class="hidden sm:inline">Sync Cloud Data</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
+                    <div class="glass-card relative overflow-hidden"><div class="absolute top-0 left-0 w-1 h-full bg-indigo-500 dark:bg-indigo-400"></div><p class="text-[10px] md:text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Total Orders</p><h3 class="text-xl md:text-2xl font-black text-slate-800 dark:text-slate-100" id="dash-order-count">0</h3></div>
+                    <div class="glass-card relative overflow-hidden"><div class="absolute top-0 left-0 w-1 h-full bg-sky-500 dark:bg-sky-400"></div><p class="text-[10px] md:text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Total Spend</p><h3 class="text-xl md:text-2xl font-black text-sky-600 dark:text-sky-400" id="dash-total-spend">฿0</h3></div>
+                    
+                    <div class="glass-card relative group cursor-help">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500 dark:bg-emerald-400 rounded-l-[20px]"></div>
+                        <p class="text-[10px] md:text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Received</p>
+                        <h3 class="text-xl md:text-2xl font-black text-emerald-600 dark:text-emerald-400" id="dash-received">0</h3>
+                        <div class="hidden lg:block absolute z-50 invisible opacity-0 group-hover:visible group-hover:opacity-100 top-[105%] left-0 w-[110%] min-w-[200px] bg-slate-900/95 backdrop-blur shadow-2xl border border-slate-700 rounded-xl p-3 transition-all duration-200 text-white pointer-events-none">
+                            <p class="text-[10px] text-emerald-400 uppercase font-bold mb-2 border-b border-slate-700 pb-1 flex items-center gap-1"><i class="fa-solid fa-check"></i> Latest 3 Received</p>
+                            <div id="hover-list-received" class="space-y-1.5 flex flex-col gap-1"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="glass-card relative group cursor-help">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-amber-400 dark:bg-amber-500 rounded-l-[20px]"></div>
+                        <p class="text-[10px] md:text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Pending ETA</p>
+                        <h3 class="text-xl md:text-2xl font-black text-amber-500 dark:text-amber-400" id="dash-pending">0</h3>
+                        <div class="hidden lg:block absolute z-50 invisible opacity-0 group-hover:visible group-hover:opacity-100 top-[105%] left-0 w-[110%] min-w-[200px] bg-slate-900/95 backdrop-blur shadow-2xl border border-slate-700 rounded-xl p-3 transition-all duration-200 text-white pointer-events-none">
+                            <p class="text-[10px] text-amber-400 uppercase font-bold mb-2 border-b border-slate-700 pb-1 flex items-center gap-1"><i class="fa-regular fa-calendar-days"></i> Next 3 Due</p>
+                            <div id="hover-list-pending" class="space-y-1.5 flex flex-col gap-1"></div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card relative group cursor-help col-span-2 lg:col-span-1">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-rose-500 dark:bg-rose-400 rounded-l-[20px]"></div>
+                        <p class="text-[10px] md:text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Overdue</p>
+                        <h3 class="text-xl md:text-2xl font-black text-rose-600 dark:text-rose-400" id="dash-overdue">0</h3>
+                        <div class="hidden lg:block absolute z-50 invisible opacity-0 group-hover:visible group-hover:opacity-100 top-[105%] right-0 w-[110%] min-w-[200px] bg-slate-900/95 backdrop-blur shadow-2xl border border-slate-700 rounded-xl p-3 transition-all duration-200 text-white pointer-events-none">
+                            <p class="text-[10px] text-rose-400 uppercase font-bold mb-2 border-b border-slate-700 pb-1 flex items-center gap-1"><i class="fa-solid fa-triangle-exclamation"></i> Most Overdue</p>
+                            <div id="hover-list-overdue" class="space-y-1.5 flex flex-col gap-1"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+                    <div class="glass-card"><h3 class="text-sm font-bold text-slate-700 dark:text-slate-300 mb-6 flex items-center gap-2"><i class="fa-solid fa-chart-pie text-indigo-500"></i> Fulfillment Status</h3><div class="relative h-64 w-full flex justify-center"><canvas id="statusChart"></canvas></div></div>
+                    <div class="glass-card"><h3 class="text-sm font-bold text-slate-700 dark:text-slate-300 mb-6 flex items-center gap-2"><i class="fa-solid fa-chart-column text-emerald-500"></i> Spend by Category</h3><div class="relative h-64 w-full flex justify-center"><canvas id="processChart"></canvas></div></div>
+                </div>
+            </div>
+
+            <div id="view-add" class="view-section max-w-3xl mx-auto">
+                <div class="glass-card">
+                    <h2 class="text-xl font-bold mb-6 text-slate-800 dark:text-slate-100 border-b border-slate-100 dark:border-slate-700/50 pb-4 flex items-center gap-2"><i class="fa-solid fa-cart-plus text-indigo-500 dark:text-indigo-400"></i> Submit New Procurement</h2>
+                    <form id="orderForm" onsubmit="event.preventDefault(); return safeSubmitOrder();" class="space-y-6 text-sm">
+                        
+                        <div><label class="block mb-1.5 font-medium text-slate-700 dark:text-slate-300">Product Name</label><input type="text" id="productName" required class="w-full p-3.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-colors"></div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div><label class="block mb-1.5 font-medium text-slate-700 dark:text-slate-300">Vendor</label><input type="text" id="vendor" list="vendorList" autocomplete="off" required class="w-full p-3.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-colors"></div>
+                            <div><label class="block mb-1.5 font-medium text-slate-700 dark:text-slate-300">Process / Category</label><input type="text" id="process" list="processList" autocomplete="off" required class="w-full p-3.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-colors"></div>
+                        </div>
+
+                        <div><label class="block mb-1.5 font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2"><i class="fa-solid fa-link text-slate-400"></i> Paste Web Link (SharePoint/Drive)</label><input type="url" id="docLink" placeholder="https://..." class="w-full p-3.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-colors"></div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div><label class="block mb-1.5 font-medium text-slate-700 dark:text-slate-300">Quantity</label><input type="number" id="qty" min="1" placeholder="1" required oninput="calcFormTotal('qty','price','displayTotal')" class="w-full p-3.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-colors"></div>
+                            <div><label class="block mb-1.5 font-medium text-slate-700 dark:text-slate-300">Unit Price (THB)</label><input type="number" id="price" min="0" step="0.01" placeholder="0" required oninput="calcFormTotal('qty','price','displayTotal')" class="w-full p-3.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-colors"></div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div><label class="block mb-1.5 font-medium text-slate-700 dark:text-slate-300">Order Date (Placed)</label><input type="date" id="orderDate" required class="w-full p-3.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 outline-none [color-scheme:light] dark:[color-scheme:dark]"></div>
+                            <div><label class="block mb-1.5 font-medium text-slate-700 dark:text-slate-300">ETA Due Date</label><input type="date" id="eta" required class="w-full p-3.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 outline-none [color-scheme:light] dark:[color-scheme:dark]"></div>
+                        </div>
+                        <div class="bg-indigo-50/50 dark:bg-indigo-900/20 p-5 rounded-xl flex justify-between items-center border border-indigo-100 dark:border-indigo-500/20 mt-8 transition-colors">
+                            <span class="font-semibold text-indigo-900 dark:text-indigo-300">Calculated Total:</span>
+                            <span id="displayTotal" class="text-2xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight">0 THB</span>
+                        </div>
+                        <button id="submitBtn" type="submit" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> Save to Google Sheets
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div id="view-orders" class="view-section max-w-7xl mx-auto">
+                <div class="glass-card flex flex-col h-[80vh]">
+                    <div class="md:hidden w-full mb-4 flex items-center gap-2 bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600">
+                        <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+                        <input type="text" id="searchInputMobile" onkeyup="document.getElementById('searchInput').value = this.value; applyFilters()" placeholder="Search..." class="bg-transparent border-none outline-none text-sm text-slate-700 dark:text-slate-200 w-full">
+                    </div>
+
+                    <div class="flex flex-wrap gap-4 justify-between items-center mb-6">
+                        <div class="flex items-center gap-3">
+                            <h2 class="text-lg md:text-xl font-bold text-slate-800 dark:text-slate-100">Order Database</h2>
+                            <button onclick="loadFromGoogleSheets()" class="text-xs bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold px-3 py-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition border border-indigo-200 dark:border-indigo-500/20 flex items-center gap-1">
+                                <i class="fa-solid fa-rotate sync-icon-global"></i> <span class="hidden sm:inline">Sync</span>
+                            </button>
+                        </div>
+                        <button onclick="exportCSV()" class="text-sm bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold px-4 py-2 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition border border-emerald-200 dark:border-emerald-500/20 flex items-center gap-2">
+                            <i class="fa-solid fa-file-export"></i> <span class="hidden sm:inline">Export CSV</span>
+                        </button>
+                    </div>
+                    <div class="flex-1 overflow-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                        <table class="w-full text-left text-sm whitespace-nowrap">
+                            <thead class="text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 uppercase text-[11px] font-bold tracking-wider transition-colors">
+                                <tr>
+                                    <th class="py-4 px-4 border-b border-slate-200 dark:border-slate-700/80 w-1/5">Product Details</th>
+                                    <th class="py-4 px-4 border-b border-slate-200 dark:border-slate-700/80">Vendor</th>
+                                    <th class="py-4 px-4 border-b border-slate-200 dark:border-slate-700/80">Process</th>
+                                    <th class="py-4 px-4 border-b border-slate-200 dark:border-slate-700/80 text-center">Qty</th>
+                                    <th class="py-4 px-4 border-b border-slate-200 dark:border-slate-700/80 text-right">Price</th>
+                                    <th class="py-4 px-4 border-b border-slate-200 dark:border-slate-700/80 text-right">Total (THB)</th>
+                                    <th class="py-4 px-4 border-b border-slate-200 dark:border-slate-700/80 text-center">ETA</th>
+                                    <th class="py-4 px-4 border-b border-slate-200 dark:border-slate-700/80 text-center">Status</th>
+                                    <th class="py-4 px-4 border-b border-slate-200 dark:border-slate-700/80 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody" class="text-slate-600 dark:text-slate-300"></tbody>
+                            <tfoot class="bg-indigo-50/80 dark:bg-slate-900/50 sticky bottom-0 z-10 shadow-[0_-1px_0_rgba(226,232,240,1)] dark:shadow-[0_-1px_0_rgba(51,65,85,1)] transition-colors">
+                                <tr>
+                                    <td colspan="5" class="py-4 px-4 text-right font-bold text-slate-700 dark:text-slate-300">Grand Total:</td>
+                                    <td class="py-4 px-4 text-right font-black text-indigo-600 dark:text-indigo-400 text-base" id="all-orders-total">฿0</td>
+                                    <td colspan="3"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-eta" class="view-section space-y-8 max-w-7xl mx-auto pb-10">
+                <div class="glass-card !border-t-4 !border-t-rose-500 shadow-rose-100 dark:shadow-none">
+                    <h2 class="text-lg font-bold text-rose-600 dark:text-rose-400 mb-4 flex items-center gap-2"><i class="fa-solid fa-circle-exclamation"></i> Action Required: Overdue</h2>
+                    <div class="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700">
+                        <table class="w-full text-left text-sm whitespace-nowrap lg:whitespace-normal">
+                            <thead class="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700/80 uppercase tracking-wider font-semibold transition-colors">
+                                <tr>
+                                    <th class="py-3 px-4 w-1/5">Product Details</th>
+                                    <th class="py-3 px-4 w-1/6">Vendor</th>
+                                    <th class="py-3 px-4 w-1/6">Process</th>
+                                    <th class="py-3 px-4 text-center">Qty</th>
+                                    <th class="py-3 px-4 text-right">Price</th>
+                                    <th class="py-3 px-4 text-right">Total</th>
+                                    <th class="py-3 px-4 text-center">ETA</th>
+                                    <th class="py-3 px-4 text-center">Status Update</th>
+                                </tr>
+                            </thead>
+                            <tbody id="etaOverdueBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="glass-card !border-t-4 !border-t-amber-400 shadow-amber-100 dark:shadow-none">
+                    <h2 class="text-lg font-bold text-amber-500 dark:text-amber-400 mb-4 flex items-center gap-2"><i class="fa-regular fa-clock"></i> Upcoming Deliveries (Pending)</h2>
+                    <div class="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700">
+                        <table class="w-full text-left text-sm whitespace-nowrap lg:whitespace-normal">
+                            <thead class="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700/80 uppercase tracking-wider font-semibold transition-colors">
+                                <tr>
+                                    <th class="py-3 px-4 w-1/5">Product Details</th>
+                                    <th class="py-3 px-4 w-1/6">Vendor</th>
+                                    <th class="py-3 px-4 w-1/6">Process</th>
+                                    <th class="py-3 px-4 text-center">Qty</th>
+                                    <th class="py-3 px-4 text-right">Price</th>
+                                    <th class="py-3 px-4 text-right">Total</th>
+                                    <th class="py-3 px-4 text-center">ETA</th>
+                                    <th class="py-3 px-4 text-center">Status Update</th>
+                                </tr>
+                            </thead>
+                            <tbody id="etaUpcomingBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="glass-card !border-t-4 !border-t-emerald-500 shadow-emerald-100 dark:shadow-none">
+                    <h2 class="text-lg font-bold text-emerald-600 dark:text-emerald-400 mb-4 flex items-center gap-2"><i class="fa-solid fa-check-circle"></i> Completed Deliveries</h2>
+                    <div class="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700">
+                        <table class="w-full text-left text-sm whitespace-nowrap lg:whitespace-normal">
+                            <thead class="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700/80 uppercase tracking-wider font-semibold transition-colors">
+                                <tr>
+                                    <th class="py-3 px-4 w-1/5">Product Details</th>
+                                    <th class="py-3 px-4 w-1/6">Vendor</th>
+                                    <th class="py-3 px-4 w-1/6">Process</th>
+                                    <th class="py-3 px-4 text-center">Qty</th>
+                                    <th class="py-3 px-4 text-right">Price</th>
+                                    <th class="py-3 px-4 text-right">Total</th>
+                                    <th class="py-3 px-4 text-center">Received On</th>
+                                    <th class="py-3 px-4 text-center">Status Log</th>
+                                </tr>
+                            </thead>
+                            <tbody id="etaReceivedBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="confirmModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center transition-opacity">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl border border-transparent dark:border-slate-700">
+            <div class="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-xl mb-4"><i class="fa-solid fa-box-open"></i></div>
+            <h3 class="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Confirm Receipt</h3>
+            <p class="text-slate-500 dark:text-slate-400 mb-6 text-sm">Are you sure you have received this order?</p>
+            <div class="flex gap-3 justify-end">
+                <button onclick="closeModal()" class="px-4 py-2 rounded-xl font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">Cancel</button>
+                <button onclick="confirmReceive()" class="px-4 py-2 rounded-xl font-bold bg-emerald-500 text-white hover:bg-emerald-600">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="undoModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center transition-opacity">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-transparent dark:border-slate-700">
+            <div class="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 text-xl mb-4"><i class="fa-solid fa-rotate-left"></i></div>
+            <h3 class="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Revise Status</h3>
+            <textarea id="undoRemark" rows="3" class="w-full p-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-amber-500 outline-none mb-6 text-sm mt-4" placeholder="Reason..."></textarea>
+            <div class="flex gap-3 justify-end">
+                <button onclick="closeUndoModal()" class="px-4 py-2 rounded-xl font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">Cancel</button>
+                <button onclick="confirmUndo()" class="px-4 py-2 rounded-xl font-bold bg-amber-500 text-white hover:bg-amber-600">Revise</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="editModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center transition-opacity">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-3xl w-full mx-4 shadow-2xl border border-transparent dark:border-slate-700 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4 border-b border-slate-100 dark:border-slate-700 pb-4"><i class="fa-solid fa-pen-to-square text-indigo-500"></i> Edit Order</h3>
+            <form id="editForm" onsubmit="event.preventDefault(); return saveEditOrder();" class="space-y-4 text-sm">
+                <input type="hidden" id="editId">
+                <div><label class="block mb-1 font-medium text-slate-700 dark:text-slate-300">Product</label><input type="text" id="editProduct" required class="w-full p-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 outline-none"></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label class="block mb-1 font-medium text-slate-700 dark:text-slate-300">Vendor</label><input type="text" id="editVendor" list="vendorList" required class="w-full p-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 outline-none"></div>
+                    <div><label class="block mb-1 font-medium text-slate-700 dark:text-slate-300">Process</label><input type="text" id="editProcess" list="processList" required class="w-full p-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 outline-none"></div>
+                </div>
+                <div><label class="block mb-1 font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2"><i class="fa-solid fa-link text-slate-400"></i> Paste Web Link (SharePoint/Drive)</label><input type="url" id="editDocLink" class="w-full p-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 outline-none"></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block mb-1 font-medium text-slate-700 dark:text-slate-300">Quantity</label><input type="number" id="editQty" min="1" required oninput="calcFormTotal('editQty','editPrice','editDisplayTotal')" class="w-full p-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 outline-none"></div>
+                    <div><label class="block mb-1 font-medium text-slate-700 dark:text-slate-300">Price</label><input type="number" id="editPrice" min="0" step="0.01" required oninput="calcFormTotal('editQty','editPrice','editDisplayTotal')" class="w-full p-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 outline-none"></div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block mb-1 font-medium text-slate-700 dark:text-slate-300">Order Date</label><input type="date" id="editOrderDate" required class="w-full p-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 outline-none [color-scheme:light] dark:[color-scheme:dark]"></div>
+                    <div><label class="block mb-1 font-medium text-slate-700 dark:text-slate-300">ETA</label><input type="date" id="editEta" required class="w-full p-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 outline-none [color-scheme:light] dark:[color-scheme:dark]"></div>
+                </div>
+                <div class="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg flex justify-between items-center border border-indigo-100 dark:border-indigo-500/20 mt-4">
+                    <span class="font-semibold text-indigo-900 dark:text-indigo-300">Total:</span><span id="editDisplayTotal" class="text-xl font-black text-indigo-600 dark:text-indigo-400">0 THB</span>
+                </div>
+                <div class="flex gap-3 justify-end mt-6">
+                    <button type="button" onclick="closeEditModal()" class="px-4 py-2 rounded-xl font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">Cancel</button>
+                    <button type="submit" id="saveEditBtn" class="px-6 py-2 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700"><i class="fa-solid fa-cloud-arrow-up"></i> Save Updates</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ==============================================================================
+        const SHEET_API_URL = "https://script.google.com/a/macros/minebea.co.th/s/AKfycbyLkLpYFDbj95bhJFCKeKqJlWRkl_ukgF45ZoK-ThThrXSN8WBUxu-1JOa9N0y8rNT_/exec"; 
+        // ==============================================================================
+        
+        let targetOrderIdForReceive = null;
+        let targetOrderIdForUndo = null;
+        let orders = []; 
+        let statusChartInstance = null;
+        let processChartInstance = null;
+
+        // --- NEW MOBILE SIDEBAR SCRIPT ---
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.toggle('-translate-x-full');
+            overlay.classList.toggle('hidden');
+        }
+
+        // --- THEME ENGINE ---
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            document.getElementById('theme-icon').className = isDark ? 'fa-solid fa-sun text-amber-400' : 'fa-solid fa-moon text-slate-600 dark:text-slate-300';
+            applyFilters(); 
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if(document.documentElement.classList.contains('dark')) document.getElementById('theme-icon').className = 'fa-solid fa-sun text-amber-400';
+            else document.getElementById('theme-icon').className = 'fa-solid fa-moon text-slate-600 dark:text-slate-300';
+        });
+
+        function getLocalTodayString() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        // --- CLOUD ENGINE ---
+        function loadFromGoogleSheets() {
+            if (SHEET_API_URL === "YOUR_GOOGLE_SCRIPT_URL_HERE") { alert("Missing Google Script URL!"); return; }
+            document.querySelectorAll('.sync-icon-global').forEach(i => i.classList.add('fa-spin'));
+            const script = document.createElement('script');
+            script.src = SHEET_API_URL + "?action=read&callback=processCloudData";
+            document.body.appendChild(script);
+        }
+
+        function processCloudData(data) {
+            document.querySelectorAll('.sync-icon-global').forEach(i => i.classList.remove('fa-spin'));
+            
+            const btn1 = document.getElementById('submitBtn');
+            if(btn1) { btn1.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Save to Google Sheets'; btn1.disabled = false; }
+            
+            const btn2 = document.getElementById('saveEditBtn');
+            if(btn2) { btn2.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Save Updates'; btn2.disabled = false; }
+
+            orders = data.reverse(); 
+            autoCheckOverdue();
+            populateMonthDropdown();
+            populateDatalists(); 
+            applyFilters();
+        }
+
+        function populateDatalists() {
+            const vendors = [...new Set(orders.map(o => o.vendor))].filter(Boolean);
+            const processes = [...new Set(orders.map(o => o.process))].filter(Boolean);
+            document.getElementById('vendorList').innerHTML = vendors.map(v => `<option value="${v}">`).join('');
+            document.getElementById('processList').innerHTML = processes.map(p => `<option value="${p}">`).join('');
+        }
+
+        function updateStatusInGoogleSheets(id, status, remark, dateReceived) {
+            let params = `&id=${encodeURIComponent(id)}&status=${encodeURIComponent(status)}&remark=${encodeURIComponent(remark || '')}`;
+            if(dateReceived) params += `&dateReceived=${encodeURIComponent(dateReceived)}`;
+            
+            const script = document.createElement('script');
+            script.src = SHEET_API_URL + "?action=update" + params + "&callback=processCloudData";
+            document.body.appendChild(script);
+        }
+
+        function deleteOrderInGoogleSheets(id) {
+            const script = document.createElement('script');
+            script.src = SHEET_API_URL + "?action=delete&id=" + encodeURIComponent(id) + "&callback=processCloudData";
+            document.body.appendChild(script);
+        }
+
+        function editOrderInGoogleSheets(order) {
+            let params = "";
+            for (let key in order) { params += `&${key}=${encodeURIComponent(order[key])}`; }
+            const script = document.createElement('script');
+            script.src = SHEET_API_URL + "?action=edit" + params + "&callback=processCloudData";
+            document.body.appendChild(script);
+        }
+
+        function initApp() {
+            document.getElementById('orderDate').value = getLocalTodayString();
+            if (SHEET_API_URL !== "YOUR_GOOGLE_SCRIPT_URL_HERE") loadFromGoogleSheets(); 
+            else { orders = []; applyFilters(); }
+        }
+
+        function switchView(viewId, clickedElement) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('view-active'));
+            document.getElementById(viewId).classList.add('view-active');
+            
+            const titles = { 'view-dashboard': 'Dashboard Overview', 'view-add': 'Create New Order', 'view-orders': 'All Orders Database', 'view-eta': 'ETA Tracking & Action' };
+            const titleEl = document.getElementById('page-title');
+            if(titleEl) titleEl.innerText = titles[viewId];
+
+            if(clickedElement && clickedElement.classList) {
+                document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active-nav'));
+                clickedElement.classList.add('active-nav');
+            }
+
+            // Close sidebar on mobile after clicking a link
+            if (window.innerWidth < 1024) {
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+                    toggleSidebar();
+                }
+            }
+        }
+
+        function autoCheckOverdue() {
+            const today = new Date();
+            today.setHours(0,0,0,0); 
+            orders.forEach(o => {
+                if (o.status === 'Pending' && o.eta && new Date(o.eta) < today) { 
+                    o.status = 'Overdue'; 
+                    updateStatusInGoogleSheets(o.id, 'Overdue', o.remark, null);
+                }
+            });
+        }
+
+        function populateMonthDropdown() {
+            const select = document.getElementById('globalMonthFilter');
+            const currentSelection = select.value;
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const validOrders = orders.filter(o => o.eta && o.eta.length >= 7);
+            const uniqueMonths = [...new Set(validOrders.map(o => o.eta.substring(0, 7)))].sort().reverse();
+            
+            select.innerHTML = '<option value="all">All Months</option>';
+            uniqueMonths.forEach(month => {
+                const parts = month.split("-");
+                if(parts.length === 2) {
+                    select.innerHTML += `<option value="${month}" ${currentSelection === month ? 'selected' : ''}>${monthNames[parseInt(parts[1], 10) - 1]} ${parts[0]}</option>`;
+                }
+            });
+        }
+
+        function applyFilters() {
+            const monthFilter = document.getElementById('globalMonthFilter').value;
+            const searchFilter = document.getElementById('searchInput').value.toLowerCase();
+            
+            let filteredOrders = orders;
+            
+            if (monthFilter !== 'all') {
+                filteredOrders = filteredOrders.filter(o => o.eta && o.eta.startsWith(monthFilter));
+            }
+            if (searchFilter.length > 0) {
+                filteredOrders = filteredOrders.filter(o => 
+                    o.product.toLowerCase().includes(searchFilter) || 
+                    o.vendor.toLowerCase().includes(searchFilter) ||
+                    o.status.toLowerCase().includes(searchFilter) ||
+                    o.process.toLowerCase().includes(searchFilter)
+                );
+            }
+            
+            updateDashboard(filteredOrders);
+            renderMainTable(filteredOrders);
+            renderETATables(filteredOrders);
+        }
+
+        function handleStatusChange(orderId, newStatus) {
+            if (newStatus === 'Received') {
+                targetOrderIdForReceive = orderId;
+                document.getElementById('confirmModal').classList.remove('hidden');
+            } else {
+                changeStatus(orderId, newStatus);
+            }
+        }
+
+        function closeModal() { document.getElementById('confirmModal').classList.add('hidden'); targetOrderIdForReceive = null; }
+        
+        function confirmReceive() { 
+            if(targetOrderIdForReceive !== null) {
+                const orderIndex = orders.findIndex(o => o.id === targetOrderIdForReceive);
+                if(orderIndex > -1) {
+                    orders[orderIndex].status = 'Received';
+                    orders[orderIndex].remark = null;
+                    orders[orderIndex].dateReceived = getLocalTodayString(); 
+                    applyFilters(); 
+                    updateStatusInGoogleSheets(targetOrderIdForReceive, 'Received', null, orders[orderIndex].dateReceived);
+                }
+            }
+            closeModal();
+        }
+
+        function changeStatus(orderId, newStatus) {
+            const orderIndex = orders.findIndex(o => o.id === orderId);
+            if(orderIndex > -1) {
+                orders[orderIndex].status = newStatus;
+                if(newStatus === 'Received') orders[orderIndex].remark = null;
+                applyFilters(); 
+                updateStatusInGoogleSheets(orderId, newStatus, orders[orderIndex].remark, null);
+            }
+        }
+
+        function reviseOrder(orderId) {
+            targetOrderIdForUndo = orderId;
+            document.getElementById('undoRemark').value = ''; 
+            document.getElementById('undoModal').classList.remove('hidden');
+        }
+        function closeUndoModal() { document.getElementById('undoModal').classList.add('hidden'); targetOrderIdForUndo = null; }
+        
+        function confirmUndo() {
+            const remarkText = document.getElementById('undoRemark').value.trim();
+            if(!remarkText) return alert("Provide a reason.");
+            if(targetOrderIdForUndo !== null) {
+                const orderIndex = orders.findIndex(o => o.id === targetOrderIdForUndo);
+                if(orderIndex > -1) {
+                    orders[orderIndex].status = 'Pending';
+                    orders[orderIndex].remark = remarkText;
+                    applyFilters(); 
+                    updateStatusInGoogleSheets(targetOrderIdForUndo, 'Pending', remarkText, null);
+                }
+                closeUndoModal();
+            }
+        }
+
+        function deleteOrder(id) {
+            if(confirm("Are you sure you want to permanently delete this order?")) {
+                orders = orders.filter(o => o.id !== id);
+                applyFilters(); 
+                deleteOrderInGoogleSheets(id);
+            }
+        }
+
+        function openEditModal(id) {
+            const order = orders.find(o => o.id === id);
+            if(!order) return;
+            document.getElementById('editId').value = order.id;
+            document.getElementById('editProduct').value = order.product;
+            document.getElementById('editVendor').value = order.vendor;
+            document.getElementById('editProcess').value = order.process;
+            document.getElementById('editDocLink').value = order.docLink || '';
+            document.getElementById('editQty').value = order.qty;
+            document.getElementById('editPrice').value = order.price;
+            document.getElementById('editOrderDate').value = order.orderDate;
+            document.getElementById('editEta').value = order.eta;
+            calcFormTotal('editQty','editPrice','editDisplayTotal');
+            document.getElementById('editModal').classList.remove('hidden');
+        }
+
+        function closeEditModal() { document.getElementById('editModal').classList.add('hidden'); }
+
+        function saveEditOrder() {
+            const id = document.getElementById('editId').value;
+            const btn = document.getElementById('saveEditBtn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            btn.disabled = true;
+
+            const updatedOrder = {
+                id: id,
+                product: document.getElementById('editProduct').value,
+                vendor: document.getElementById('editVendor').value,
+                process: document.getElementById('editProcess').value,
+                docLink: document.getElementById('editDocLink').value,
+                qty: parseFloat(document.getElementById('editQty').value) || 0,
+                price: parseFloat(document.getElementById('editPrice').value) || 0,
+                total: calcFormTotal('editQty','editPrice', null),
+                orderDate: document.getElementById('editOrderDate').value,
+                eta: document.getElementById('editEta').value,
+            };
+
+            const orderIndex = orders.findIndex(o => o.id === id);
+            if(orderIndex > -1) {
+                updatedOrder.status = orders[orderIndex].status; 
+                updatedOrder.remark = orders[orderIndex].remark; 
+                updatedOrder.dateReceived = orders[orderIndex].dateReceived;
+                orders[orderIndex] = updatedOrder;
+                applyFilters(); 
+                editOrderInGoogleSheets(updatedOrder);
+            }
+            closeEditModal();
+            return false;
+        }
+
+        function getStatusColor(status) {
+            if(status === 'Received') return 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700';
+            if(status === 'Overdue') return 'bg-rose-50 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-700';
+            return 'bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700'; 
+        }
+
+        function generateTableRow(o, viewType) {
+            const colorClass = getStatusColor(o.status);
+            const remarkHtml = o.remark ? `<div class="text-[10px] text-rose-600 dark:text-rose-300 mt-1 font-medium bg-rose-100 dark:bg-rose-900/50 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-700"><i class="fa-solid fa-clock-rotate-left mr-1"></i>${o.remark}</div>` : '';
+            
+            const productHtml = o.docLink && o.docLink.length > 5 
+                ? `<a href="${o.docLink}" target="_blank" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-2 group">${o.product} <i class="fa-solid fa-arrow-up-right-from-square text-[10px] opacity-50 group-hover:opacity-100"></i></a>`
+                : o.product;
+
+            let statusHtml = '', actionHtml = '';
+
+            if (viewType === 'orders') {
+                statusHtml = `<span class="px-3 py-1 rounded-lg border text-[11px] uppercase tracking-wide font-bold ${colorClass}">${o.status}</span>`;
+                actionHtml = `<td class="py-3 px-4 text-center">
+                    <div class="flex items-center justify-center gap-3">
+                        <button onclick="openEditModal('${o.id}')" class="text-slate-400 hover:text-indigo-500 transition"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deleteOrder('${o.id}')" class="text-slate-400 hover:text-rose-500 transition"><i class="fa-solid fa-trash"></i></button>
+                    </div></td>`;
+            } else if (viewType === 'eta') {
+                if (o.status === 'Received') {
+                    statusHtml = `<div class="flex justify-center gap-2"><span class="px-3 py-1 rounded-lg border text-[11px] uppercase font-bold ${colorClass}">${o.status}</span><button onclick="reviseOrder('${o.id}')" class="text-slate-400 hover:text-amber-500 transition p-1 bg-slate-50 dark:bg-slate-800 rounded"><i class="fa-solid fa-rotate-left"></i></button></div>`;
+                } else {
+                    statusHtml = `<div class="status-wrapper px-2 py-1 rounded-lg border text-xs font-bold ${colorClass}">
+                        <select onchange="handleStatusChange('${o.id}', this.value)" class="custom-select font-inherit text-inherit">
+                            <option value="Pending" class="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200" ${o.status==='Pending'?'selected':''}>Pending</option>
+                            <option value="Received" class="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">Received</option>
+                            <option value="Overdue" class="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200" ${o.status==='Overdue'?'selected':''}>Overdue</option>
+                        </select>
+                    </div>`;
+                }
+            }
+
+            return `<tr class="even:bg-slate-50/80 dark:even:bg-slate-700/30 hover:bg-indigo-50 dark:hover:bg-indigo-500/15 transition-colors border-b border-slate-100/50 dark:border-slate-700/80">
+                <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">${productHtml} ${remarkHtml}</td>
+                <td class="py-3 px-4 text-slate-600 dark:text-slate-400">${o.vendor}</td>
+                <td class="py-3 px-4 text-slate-600 dark:text-slate-400">${o.process}</td>
+                <td class="py-3 px-4 text-center text-slate-800 dark:text-slate-200">${o.qty}</td>
+                <td class="py-3 px-4 text-slate-500 dark:text-slate-400 text-right">฿${o.price.toLocaleString()}</td>
+                <td class="py-3 px-4 font-bold text-indigo-600 dark:text-indigo-400 text-right">฿${o.total.toLocaleString()}</td>
+                <td class="py-3 px-4 text-slate-600 dark:text-slate-400 text-center">${(viewType === 'eta' && o.status === 'Received') ? (o.dateReceived || o.eta) : o.eta}</td>
+                <td class="py-3 px-4 text-center">${statusHtml}</td>
+                ${actionHtml}
+            </tr>`;
+        }
+
+        function renderMainTable(data) {
+            const tbody = document.getElementById('tableBody');
+            let grandTotal = 0;
+            if (data.length === 0) tbody.innerHTML = '<tr><td colspan="9" class="py-10 text-center text-slate-400">No data found. Click Sync Cloud or add a new order.</td></tr>';
+            else tbody.innerHTML = data.map(o => { grandTotal += o.total; return generateTableRow(o, 'orders'); }).join('');
+            document.getElementById('all-orders-total').innerText = '฿' + grandTotal.toLocaleString();
+        }
+
+        function renderETATables(data) {
+            const overdueBody = document.getElementById('etaOverdueBody');
+            const upcomingBody = document.getElementById('etaUpcomingBody');
+            const receivedBody = document.getElementById('etaReceivedBody');
+            
+            const ov = data.filter(o => o.status === 'Overdue');
+            const pe = data.filter(o => o.status === 'Pending');
+            const re = data.filter(o => o.status === 'Received');
+
+            const emptyRow = (msg) => `<tr><td colspan="8" class="py-6 text-center text-slate-400 italic">${msg}</td></tr>`;
+
+            overdueBody.innerHTML = ov.length ? ov.map(o => generateTableRow(o, 'eta')).join('') : emptyRow("No overdue orders.");
+            upcomingBody.innerHTML = pe.length ? pe.map(o => generateTableRow(o, 'eta')).join('') : emptyRow("No pending deliveries.");
+            receivedBody.innerHTML = re.length ? re.map(o => generateTableRow(o, 'eta')).join('') : emptyRow("No completed deliveries yet.");
+        }
+
+        function generateMiniList(arr, dateKey) {
+            if(arr.length === 0) return `<p class="text-xs text-slate-400 italic py-1">No items to show</p>`;
+            return arr.map(item => `
+                <div class="flex justify-between items-start gap-3 text-xs border-b border-slate-700/50 last:border-0 py-1.5">
+                    <span class="truncate font-medium text-slate-200">${item.product}</span>
+                    <span class="text-[10px] text-slate-400 whitespace-nowrap">${item[dateKey] || item.eta || 'N/A'}</span>
+                </div>
+            `).join('');
+        }
+
+        function updateDashboard(data) {
+            let totalSpend = 0, pending = 0, overdue = 0, received = 0;
+            let spendByCategory = {};
+
+            data.forEach(o => {
+                totalSpend += o.total;
+                spendByCategory[o.process] = (spendByCategory[o.process] || 0) + o.total;
+
+                if(o.status === 'Pending') pending++;
+                if(o.status === 'Overdue') overdue++;
+                if(o.status === 'Received') received++;
+            });
+
+            document.getElementById('dash-order-count').innerText = data.length;
+            document.getElementById('dash-total-spend').innerText = '฿' + totalSpend.toLocaleString();
+            document.getElementById('dash-pending').innerText = pending;
+            document.getElementById('dash-overdue').innerText = overdue;
+            document.getElementById('dash-received').innerText = received;
+
+            let pendingList = data.filter(o => o.status === 'Pending').sort((a,b) => new Date(a.eta) - new Date(b.eta)).slice(0, 3);
+            let overdueList = data.filter(o => o.status === 'Overdue').sort((a,b) => new Date(a.eta) - new Date(b.eta)).slice(0, 3);
+            let receivedList = data.filter(o => o.status === 'Received').slice(0, 3); 
+
+            document.getElementById('hover-list-pending').innerHTML = generateMiniList(pendingList, 'eta');
+            document.getElementById('hover-list-overdue').innerHTML = generateMiniList(overdueList, 'eta');
+            document.getElementById('hover-list-received').innerHTML = generateMiniList(receivedList, 'dateReceived');
+
+            renderCharts(pending, received, overdue, spendByCategory);
+        }
+
+        function renderCharts(pending, received, overdue, spendByCategory) {
+            const isDark = document.documentElement.classList.contains('dark');
+            const tColor = isDark ? '#cbd5e1' : '#475569';
+            const gColor = isDark ? '#334155' : '#e2e8f0';
+
+            if(statusChartInstance) statusChartInstance.destroy();
+            statusChartInstance = new Chart(document.getElementById('statusChart'), {
+                type: 'doughnut',
+                data: { labels: ['Pending', 'Received', 'Overdue'], datasets: [{ data: [pending, received, overdue], backgroundColor: ['#fbbf24', '#34d399', '#fb7185'], borderWidth: 0, hoverOffset: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tColor } } } }
+            });
+
+            if(processChartInstance) processChartInstance.destroy();
+            processChartInstance = new Chart(document.getElementById('processChart'), {
+                type: 'bar',
+                data: { labels: Object.keys(spendByCategory), datasets: [{ label: 'Spend (THB)', data: Object.values(spendByCategory), backgroundColor: '#6366f1', borderRadius: 6 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { color: tColor }, grid: { color: gColor } }, x: { ticks: { color: tColor }, grid: { display: false } } } }
+            });
+        }
+
+        function calcFormTotal(qId, pId, tId) {
+            try {
+                const qty = parseFloat(document.getElementById(qId).value) || 0;
+                const price = parseFloat(document.getElementById(pId).value) || 0;
+                const total = qty * price;
+                if(tId) document.getElementById(tId).innerText = total.toLocaleString() + " THB";
+                return total;
+            } catch(e) { return 0; }
+        }
+
+        async function safeSubmitOrder() {
+            if (SHEET_API_URL === "YOUR_GOOGLE_SCRIPT_URL_HERE") return alert("Configure Google Sheet URL!");
+            const btn = document.getElementById('submitBtn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...'; btn.disabled = true;
+
+            const order = {
+                id: "ORD-" + Date.now(), product: document.getElementById('productName').value, vendor: document.getElementById('vendor').value, process: document.getElementById('process').value,
+                docLink: document.getElementById('docLink').value, qty: parseFloat(document.getElementById('qty').value) || 0, price: parseFloat(document.getElementById('price').value) || 0, total: calcFormTotal('qty','price', null), orderDate: document.getElementById('orderDate').value, eta: document.getElementById('eta').value, status: 'Pending', remark: "" 
+            };
+            
+            let params = ""; for (let key in order) params += `&${key}=${encodeURIComponent(order[key])}`;
+            const script = document.createElement('script'); script.src = SHEET_API_URL + "?action=add" + params + "&callback=processCloudData"; document.body.appendChild(script);
+
+            document.getElementById('orderForm').reset(); document.getElementById('orderDate').value = getLocalTodayString(); calcFormTotal('qty','price','displayTotal');
+            const navLinks = document.getElementById('nav-links'); switchView('view-orders', navLinks ? navLinks.children[1] : null);
+            return false; 
+        }
+
+        function exportCSV() {
+            const filterValue = document.getElementById('globalMonthFilter').value;
+            const dataToExport = filterValue === 'all' ? orders : orders.filter(o => o.eta.startsWith(filterValue));
+            if (dataToExport.length === 0) return alert("No data to export!");
+            let csv = "Order Date,Product,Vendor,Process,Qty,Unit Price (THB),Total (THB),ETA,Status,Date Received,Undo Remark,Document Link\n" + dataToExport.map(o => `${o.orderDate},"${o.product}","${o.vendor}","${o.process}",${o.qty},${o.price},${o.total},${o.eta},${o.status},${o.dateReceived || ''},"${o.remark || ''}","${o.docLink || ''}"`).join("\n");
+            const link = document.createElement("a"); link.href = encodeURI("data:text/csv;charset=utf-8," + csv); link.download = `PTrack_Orders.csv`; link.click();
+        }
+    </script>
+</body>
+</html>
