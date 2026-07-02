@@ -358,7 +358,8 @@
 
     <script>
         // ==============================================================================
-        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbxpGZb74GUTXXaWsPNwkyI89fJNur4It9KmRfbTdRp2_vSIY87j3oAl9kLWjgrMDSs3/exec"; 
+        // 🛑 PASTE YOUR FULL SHEETDB API LINK IN HERE (e.g. https://sheetdb.io/api/v1/abcd123)
+        const SHEETDB_API_URL = "https://sheetdb.io/api/v1/znflz79r492co"; 
         // ==============================================================================
         
         let targetOrderIdForReceive = null;
@@ -396,13 +397,40 @@
             return `${y}-${m}-${d}`;
         }
 
-        // --- CLOUD ENGINE ---
+        // --- CLOUD ENGINE (SheetDB Upgrade) ---
         function loadFromGoogleSheets() {
-            if (SHEET_API_URL === "YOUR_GOOGLE_SCRIPT_URL_HERE") { alert("Missing Google Script URL!"); return; }
+            if (!SHEETDB_API_URL || SHEETDB_API_URL.includes("PASTE_YOUR_SHEETDB_URL_HERE")) { alert("Missing SheetDB API URL!"); return; }
             document.querySelectorAll('.sync-icon-global').forEach(i => i.classList.add('fa-spin'));
-            const script = document.createElement('script');
-            script.src = SHEET_API_URL + "?action=read&callback=processCloudData";
-            document.body.appendChild(script);
+            
+            fetch(SHEETDB_API_URL)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    
+                    // Normalize spreadsheet numbers strings into JavaScript numeric formats
+                    const sanitizedData = data.map(o => ({
+                        id: o.id || '',
+                        product: o.product || '',
+                        vendor: o.vendor || '',
+                        process: o.process || '',
+                        docLink: o.docLink || '',
+                        qty: parseFloat(o.qty) || 0,
+                        price: parseFloat(o.price) || 0,
+                        total: parseFloat(o.total) || 0,
+                        orderDate: o.orderDate || '',
+                        eta: o.eta || '',
+                        status: o.status || 'Pending',
+                        remark: o.remark || '',
+                        dateReceived: o.dateReceived || ''
+                    }));
+                    
+                    processCloudData(sanitizedData);
+                })
+                .catch(err => {
+                    console.error("Read Error:", err);
+                    document.querySelectorAll('.sync-icon-global').forEach(i => i.classList.remove('fa-spin'));
+                    alert("Network Error: Could not read data from SheetDB.");
+                });
         }
 
         function processCloudData(data) {
@@ -429,32 +457,51 @@
         }
 
         function updateStatusInGoogleSheets(id, status, remark, dateReceived) {
-            let params = `&id=${encodeURIComponent(id)}&status=${encodeURIComponent(status)}&remark=${encodeURIComponent(remark || '')}`;
-            if(dateReceived) params += `&dateReceived=${encodeURIComponent(dateReceived)}`;
+            document.querySelectorAll('.sync-icon-global').forEach(i => i.classList.add('fa-spin'));
             
-            const script = document.createElement('script');
-            script.src = SHEET_API_URL + "?action=update" + params + "&callback=processCloudData";
-            document.body.appendChild(script);
+            const payload = { status: status, remark: remark || '' };
+            if(dateReceived) payload.dateReceived = dateReceived;
+
+            fetch(`${SHEETDB_API_URL}/id/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ data: payload })
+            })
+            .then(res => res.json())
+            .then(() => loadFromGoogleSheets())
+            .catch(err => console.error("Status Update Error:", err));
         }
 
         function deleteOrderInGoogleSheets(id) {
-            const script = document.createElement('script');
-            script.src = SHEET_API_URL + "?action=delete&id=" + encodeURIComponent(id) + "&callback=processCloudData";
-            document.body.appendChild(script);
+            document.querySelectorAll('.sync-icon-global').forEach(i => i.classList.add('fa-spin'));
+            
+            fetch(`${SHEETDB_API_URL}/id/${id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(() => loadFromGoogleSheets())
+            .catch(err => console.error("Delete Error:", err));
         }
 
         function editOrderInGoogleSheets(order) {
-            let params = "";
-            for (let key in order) { params += `&${key}=${encodeURIComponent(order[key])}`; }
-            const script = document.createElement('script');
-            script.src = SHEET_API_URL + "?action=edit" + params + "&callback=processCloudData";
-            document.body.appendChild(script);
+            document.querySelectorAll('.sync-icon-global').forEach(i => i.classList.add('fa-spin'));
+            
+            fetch(`${SHEETDB_API_URL}/id/${order.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ data: order })
+            })
+            .then(res => res.json())
+            .then(() => loadFromGoogleSheets())
+            .catch(err => console.error("Edit Sync Error:", err));
         }
 
         function initApp() {
             document.getElementById('orderDate').value = getLocalTodayString();
-            if (SHEET_API_URL !== "YOUR_GOOGLE_SCRIPT_URL_HERE") loadFromGoogleSheets(); 
-            else { orders = []; applyFilters(); }
+            if (SHEETDB_API_URL && !SHEETDB_API_URL.includes("PASTE_YOUR_SHEETDB_URL_HERE")) {
+                loadFromGoogleSheets(); 
+            } else { orders = []; applyFilters(); }
         }
 
         function switchView(viewId, clickedElement) {
@@ -470,7 +517,6 @@
                 clickedElement.classList.add('active-nav');
             }
 
-            // Close sidebar on mobile after clicking a link
             if (window.innerWidth < 1024) {
                 const sidebar = document.getElementById('sidebar');
                 if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
@@ -788,21 +834,48 @@
             } catch(e) { return 0; }
         }
 
-        async function safeSubmitOrder() {
-            if (SHEET_API_URL === "YOUR_GOOGLE_SCRIPT_URL_HERE") return alert("Configure Google Sheet URL!");
+        function safeSubmitOrder() {
+            if (!SHEETDB_API_URL || SHEETDB_API_URL.includes("PASTE_YOUR_SHEETDB_URL_HERE")) return alert("Configure SheetDB URL ID!");
             const btn = document.getElementById('submitBtn');
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...'; btn.disabled = true;
 
             const order = {
-                id: "ORD-" + Date.now(), product: document.getElementById('productName').value, vendor: document.getElementById('vendor').value, process: document.getElementById('process').value,
-                docLink: document.getElementById('docLink').value, qty: parseFloat(document.getElementById('qty').value) || 0, price: parseFloat(document.getElementById('price').value) || 0, total: calcFormTotal('qty','price', null), orderDate: document.getElementById('orderDate').value, eta: document.getElementById('eta').value, status: 'Pending', remark: "" 
+                id: "ORD-" + Date.now(), 
+                product: document.getElementById('productName').value, 
+                vendor: document.getElementById('vendor').value, 
+                process: document.getElementById('process').value,
+                docLink: document.getElementById('docLink').value, 
+                qty: parseFloat(document.getElementById('qty').value) || 0, 
+                price: parseFloat(document.getElementById('price').value) || 0, 
+                total: calcFormTotal('qty','price', null), 
+                orderDate: document.getElementById('orderDate').value, 
+                eta: document.getElementById('eta').value, 
+                status: 'Pending', 
+                remark: "",
+                dateReceived: ""
             };
             
-            let params = ""; for (let key in order) params += `&${key}=${encodeURIComponent(order[key])}`;
-            const script = document.createElement('script'); script.src = SHEET_API_URL + "?action=add" + params + "&callback=processCloudData"; document.body.appendChild(script);
+            fetch(SHEETDB_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ data: [order] })
+            })
+            .then(res => res.json())
+            .then(() => {
+                document.getElementById('orderForm').reset(); 
+                document.getElementById('orderDate').value = getLocalTodayString(); 
+                calcFormTotal('qty','price','displayTotal');
+                const navLinks = document.getElementById('nav-links'); 
+                switchView('view-orders', navLinks ? navLinks.children[1] : null);
+                loadFromGoogleSheets();
+            })
+            .catch(err => {
+                console.error("Submission error:", err);
+                btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Save to Google Sheets'; 
+                btn.disabled = false;
+                alert("Failed to submit data through the proxy api.");
+            });
 
-            document.getElementById('orderForm').reset(); document.getElementById('orderDate').value = getLocalTodayString(); calcFormTotal('qty','price','displayTotal');
-            const navLinks = document.getElementById('nav-links'); switchView('view-orders', navLinks ? navLinks.children[1] : null);
             return false; 
         }
 
